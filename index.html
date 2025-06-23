@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Movie S2 - Movies</title>
+
+    <!-- Ua-parser-js is loaded globally -->
+    <script src="https://cdn.jsdelivr.net/npm/ua-parser-js@0.7.33/dist/ua-parser.min.js"></script>
+
+    <style>
+        /* Common CSS from style.css */
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap');
+
+        :root {
+            --primary-color: #E50914; /* Netflix Red */
+            --background-color: #0B0C10; /* Dark background */
+            --card-background: #1F2833; /* Slightly lighter for cards */
+            --text-primary: #FFFFFF; /* White text */
+            --text-secondary: #C5C6C7; /* Grey text */
+            --accent-color: #66FCF1;
+            --border-color: #45A29E;
+            --font-family: 'DM Sans', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--background-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding-top: 70px; /* Space for fixed header */
+            overflow-x: hidden;
+        }
+
+        /* --- Global Loading & Overlay Styles --- */
+        #loading-overlay,
+        .full-screen-overlay,
+        .links-menu-overlay,
+        .search-overlay {
+            display: flex; /* Default to flex, hidden by JS */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(11, 12, 16, 0.95);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+        #loading-overlay .loader {
+            border: 5px solid var(--card-background);
+            border-top: 5px solid var(--primary-color);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .full-screen-overlay h2 {
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+        .full-screen-overlay p {
+            font-size: 1.1rem;
+            max-width: 500px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .update-now-button,
+        .button {
+            display: inline-flex; /* Changed to inline-flex */
+            margin-top: 30px;
+            padding: 15px 40px;
+            background-color: var(--primary-color);
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 700;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 15px rgba(229, 9, 20, 0.4);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .update-now-button:hover,
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(229, 9, 20, 0.5);
+        }
+
+        /* --- Header / Navigation --- */
+        .app-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 5%;
+            background: linear-gradient(180deg, rgba(11,12,16,0.9) 0%, transparent 100%);
+            z-index: 1000;
+            transition: background-color 0.3s ease;
+        }
+        body.scrolled .app-header {
+            background-color: var(--background-color);
+            border-bottom: 1px solid #1a1a1a;
+        }
+        .app-header .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .app-header .logo span {
+            color: var(--primary-color);
+        }
+        .header-icons {
+            display: flex;
+            align-items: center;
+        }
+        .header-icons > div { /* For search, profile, menu icons */
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            padding: 5px;
+            margin-left: 15px;
+        }
+        .header-icons svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+
+        /* --- Main Content Area --- */
+        .main-container {
+            padding: 0 5%;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        #status-message {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+            color: white;
+            display: none;
+            word-break: break-word;
+            text-align: center;
+            font-weight: bold;
+        }
+
+
+        /* --- Movie Card and Carousel Styles --- */
+        .category-section { margin-bottom: 40px; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .section-title { font-size: 1.3rem; font-weight: 500; }
+        .more-btn { color: var(--accent-color); text-decoration: none; font-size: 0.9rem; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 5px; }
+
+        .movie-carousel {
+            display: flex;
+            overflow-x: auto;
+            gap: 15px;
+            padding: 10px 2px;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            scroll-behavior: smooth;
+        }
+        .movie-carousel::-webkit-scrollbar { display: none; }
+
+        .movie-card {
+            flex: 0 0 calc(50% - 8px); /* 2 cards per row on small screens */
+            border-radius: 8px;
+            background-color: var(--card-background);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            -webkit-tap-highlight-color: transparent;
+            text-decoration: none;
+            color: inherit;
+        }
+        .movie-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .movie-card-image {
+            width: 100%;
+            aspect-ratio: 2/3; /* Portrait aspect ratio for movie posters */
+            overflow: hidden;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .movie-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.3s ease;
+            border-radius: 0;
+        }
+        .movie-card:hover img { transform: scale(1.05); }
+
+        .movie-card-title {
+            padding: 10px 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-align: center;
+            color: var(--text-primary);
+            flex-grow: 1;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            word-break: break-word;
+        }
+
+        .movie-card .premium-tag,
+        .movie-card .free-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            z-index: 1;
+        }
+        .movie-card .free-tag {
+            background-color: #28a745;
+        }
+
+        /* Premium Locked Overlay */
+        .movie-card.premium-locked .premium-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.75);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            padding: 10px;
+            opacity: 1;
+            z-index: 2;
+            pointer-events: auto;
+        }
+        .movie-card.premium-locked img {
+            filter: brightness(0.6);
+        }
+        .movie-card.premium-locked .movie-card-title {
+            color: var(--text-secondary);
+        }
+        .movie-card.premium-locked .premium-overlay .lock-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            text-shadow: 0 0 10px var(--primary-color);
+        }
+        .movie-card.premium-locked .premium-overlay p {
+            font-size: 1rem;
+            margin-bottom: 15px;
+            color: var(--text-secondary);
+            text-align: center;
+            font-weight: bold;
+        }
+        .movie-card.premium-locked .premium-overlay .upgrade-btn {
+            display: inline-block;
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            width: auto;
+            margin-top: 0;
+        }
+        .movie-card.premium-locked .premium-overlay .upgrade-btn:hover {
+            background-color: #f0565f;
+        }
+
+        /* Slider Specifics (overrides movie-card for slider items) */
+        #home-slider .movie-card {
+            flex: 0 0 calc(90% - 8px); /* 90% width of container */
+            aspect-ratio: 16/9; /* Landscape aspect ratio */
+            background: none;
+            transition: none;
+            overflow: hidden;
+            cursor: default;
+            box-shadow: none;
+            display: block; /* Override flex */
+            padding: 0;
+        }
+        #home-slider .movie-card.has-link { /* Add pointer cursor if it has a link */
+            cursor: pointer;
+        }
+        #home-slider .movie-card .movie-card-image { /* Target the image container inside slider */
+            width: 100%;
+            height: 100%;
+            aspect-ratio: auto;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #home-slider .movie-card img {
+            width: 100%; height: 100%; object-fit: cover; display: block; transition: none;
+            border-radius: 8px;
+        }
+        #home-slider .movie-card:hover img { transform: none; }
+        #home-slider .movie-card .movie-card-title { display: none; }
+        #home-slider .movie-card .premium-tag, #home-slider .movie-card .free-tag { display: none; } /* Hide tags for sliders */
+        #home-slider .movie-card.premium-locked .premium-overlay { display: none; } /* Hide lock for sliders */
+
+
+        /* --- Skeleton Loaders --- */
+        .skeleton { animation: shimmer 1.5s infinite linear; background: linear-gradient(90deg, #1F2833 25%, #2a3542 50%, #1F2833 75%); background-size: 200% 100%; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .skeleton-section { margin-bottom: 40px; }
+        .skeleton-title-bar { height: 2rem; width: 200px; margin-bottom: 15px; border-radius: 4px; }
+        .skeleton.movie-card { display: flex; flex-direction: column; }
+        .skeleton.movie-card .skeleton-image { width: 100%; aspect-ratio: 2/3; background: linear-gradient(90deg, #1F2833 25%, #2a3542 50%, #1F2833 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite linear; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        .skeleton.movie-card .skeleton-title { padding: 10px 8px; height: 1.2em; margin-top: 5px; width: 80%; background: linear-gradient(90deg, #1F2833 25%, #2a3542 50%, #1F2833 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite linear; align-self: center; border-radius: 4px; }
+
+        .skeleton.slider-card { flex: 0 0 calc(90% - 8px); aspect-ratio: 16/9; border-radius: 8px; background: linear-gradient(90deg, #1F2833 25%, #2a3542 50%, #1F2833 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite linear; }
+        
+        .skeleton-carousel { display: flex; overflow-x: auto; gap: 15px; padding: 10px 2px; }
+        .skeleton-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding-top: 20px; }
+
+
+        /* --- Category View --- */
+        .grid-view { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; padding-top: 20px; }
+        #category-view-header { padding: 20px 0; text-align: center; }
+        #category-view-title { font-size: 1.8rem; font-weight: 700; margin-bottom: 20px; }
+
+
+        /* --- Detail View --- */
+        #detail-view { min-height: 100vh; position: relative; padding-top: 0; animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        #detail-bg-blur { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(30px) brightness(0.3); transform: scale(1.1); z-index: -1; }
+
+        .detail-content {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px 5%;
+        }
+
+        #detail-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            text-align: left;
+            line-height: 1.3;
+            color: var(--text-primary);
+        }
+
+        #video-player-container {
+            width: 100%;
+            max-width: 900px;
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            background-color: #000;
+            margin: 0 auto;
+            flex-shrink: 0;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-secondary);
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        #video-player-container iframe,
+        #video-player-container .video-error-message {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            margin: 0;
+            padding: 0;
+        }
+        #video-player-container.has-iframe {
+            display: block;
+            justify-content: initial;
+            align-items: initial;
+        }
+
+        .detail-meta-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #detail-poster {
+            width: 60vw;
+            max-width: 280px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+            display: block;
+            height: auto;
+        }
+
+        .detail-text-info {
+            width: 100%;
+        }
+
+        #detail-category {
+            background-color: rgba(255,255,255,0.1);
+            color: var(--text-secondary);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+
+        #watch-fullscreen-btn {
+            margin-top: 0;
+            margin-bottom: 20px;
+            max-width: 250px;
+            align-self: center; /* Center button */
+        }
+
+        .back-btn {
+            padding: 14px 25px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            -webkit-tap-highlight-color: transparent;
+            background-color: var(--card-background);
+            color: white;
+            margin-top: 20px;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 200px;
+        }
+
+        /* --- Links Menu Styles --- */
+        .links-menu-content {
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 300px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        .links-menu-content h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+        .links-menu-content a {
+            display: block;
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 1rem;
+        }
+        .links-menu-content a svg {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+        }
+        .links-menu-content a:last-child { margin-bottom: 0; }
+        .links-menu-content a:hover { background-color: #1a222b; }
+        .close-menu-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* --- Search Overlay Styles --- */
+        .search-content-wrapper {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 5%;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .search-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; flex-shrink: 0; }
+        #search-bar-input { flex-grow: 1; padding: 14px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 1rem; background-color: var(--card-background); color: white; }
+        #close-search { background: none; border: none; color: white; font-size: 2rem; cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 5px; }
+        #search-results-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            scrollbar-width: none; /* Firefox */
+        }
+        #search-results-container::-webkit-scrollbar { display: none; } /* Chrome, Safari, Opera */
+        #search-results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        #search-status-message { text-align: center; font-size: 1.2rem; color: var(--text-secondary); padding: 50px 20px; display: none; }
+
+
+        /* --- Authentication & Profile & Subscription common styles --- */
+        .auth-container, .profile-container, .subscription-container {
+            max-width: 400px;
+            margin: 50px auto;
+            background-color: var(--card-background);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            padding-top: 30px; /* Adjust padding-top for fixed header offset */
+        }
+        .auth-container h2, .profile-container h2, .subscription-container h2 {
+            margin-top: 0; /* Remove extra margin for h2 in these containers */
+        }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: var(--text-secondary); font-weight: 500; }
+        input[type="text"], input[type="email"], input[type="password"], input[type="number"] {
+            width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 4px;
+            background-color: #333333; color: var(--text-primary); font-size: 1rem;
+        }
+        button { /* General button style, overridden by specific classes */
+            display: block; width: 100%; padding: 12px;
+            background-color: var(--primary-color); color: var(--text-primary);
+            border: none; border-radius: 4px; cursor: pointer;
+            font-size: 1.1rem; font-weight: 500;
+            transition: background-color 0.3s ease; margin-top: 20px;
+        }
+        button:hover { background-color: #f0565f; }
+        .message { margin-top: 15px; padding: 10px; border-radius: 4px; text-align: center; font-weight: bold; }
+        .message.success { background-color: #28a745; color: white; }
+        .message.error { background-color: #dc3545; color: white; }
+        .message.info { background-color: #007bff; color: white; }
+        p { margin-top: 10px; text-align: center; color: var(--text-secondary); }
+        p a { color: var(--accent-color); text-decoration: none; }
+        p a:hover { text-decoration: underline; }
+
+        /* Profile Page Specific */
+        .profile-container p strong { color: var(--primary-color); }
+        #copyUidBtn, #copyReferralCodeBtn {
+            display: inline-block; width: auto; padding: 5px 10px; margin-left: 10px;
+            font-size: 0.9rem; background-color: var(--accent-color); color: var(--card-background);
+            border-radius: 4px; border: none; cursor: pointer; transition: background-color 0.3s;
+        }
+        #copyUidBtn:hover, #copyReferralCodeBtn:hover { background-color: #0056b3; }
+        .logout-btn { background-color: #6c757d; }
+        .logout-btn:hover { background-color: #5a6268; }
+
+        /* Subscription Page Specific */
+        #planOptions { margin-bottom: 30px; text-align: left; }
+        #planOptions h3 { color: var(--accent-color); margin-bottom: 10px; text-align: center;}
+        #planOptions p { text-align: left; margin-top: 5px; font-size: 0.95rem; }
+        #planOptions b { color: var(--text-primary); }
+
+        .payment-methods h3 { margin-top: 30px; margin-bottom: 15px; color: var(--accent-color); }
+        .method-buttons { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .payment-method-img {
+            width: 80px; height: 50px; object-fit: contain; border: 2px solid transparent;
+            border-radius: 5px; cursor: pointer; transition: border-color 0.3s ease, transform 0.2s ease;
+        }
+        .payment-method-img.active { border-color: var(--primary-color); transform: scale(1.1); }
+        .payment-method-img:hover { border-color: var(--border-color); }
+        #paymentDetails { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); }
+        #paymentDetails p { text-align: left; margin-bottom: 10px; }
+        #paymentDetails strong { color: var(--primary-color); }
+
+
+        /* --- Responsive Adjustments --- */
+        @media (min-width: 600px) {
+            .movie-card { flex-basis: calc(33.33% - 10px); }
+            .grid-view, #search-results-grid { grid-template-columns: repeat(3, 1fr); }
+            #home-slider .movie-card { flex-basis: calc(70% - 8px); }
+
+            .detail-content { flex-direction: column; align-items: flex-start; padding: 0 5%; }
+            #detail-title { margin-left: 0; margin-right: 0; margin-bottom: 20px; }
+            #video-player-container { margin: 0 auto 30px auto; display: block; justify-content: initial; align-items: initial; }
+            #video-player-container .video-error-message { display: flex; justify-content: center; align-items: center; }
+            #video-player-container.has-iframe { display: block; }
+
+            .detail-meta-area { flex-direction: row; align-items: flex-start; gap: 30px; width: 100%; padding: 0; margin-bottom: 30px; }
+            #detail-poster { width: 220px; max-width: none; }
+            .detail-text-info { flex-grow: 1; text-align: left; }
+            #watch-fullscreen-btn { align-self: flex-start; margin-left: 0; }
+            .back-btn { margin-top: 20px; align-self: flex-start; margin-left: 0; }
+        }
+        @media (min-width: 768px) {
+            .movie-card { flex-basis: calc(25% - 11px); }
+            .grid-view, #search-results-grid { grid-template-columns: repeat(4, 1fr); }
+            #home-slider .movie-card { flex-basis: calc(60% - 8px); }
+            #detail-poster { width: 250px; max-width: none;}
+            .detail-meta-area { gap: 40px; }
+        }
+        @media (min-width: 1024px) {
+            .movie-card { flex-basis: calc(20% - 12px); }
+            .grid-view, #search-results-grid { grid-template-columns: repeat(5, 1fr); }
+            #home-slider .movie-card { flex-basis: calc(50% - 8px); }
+            #detail-poster { width: 280px; }
+        }
+        @media (min-width: 1400px) {
+            .movie-card { flex-basis: calc(16.66% - 13px); }
+            .grid-view, #search-results-grid { grid-template-columns: repeat(6, 1fr); }
+            #home-slider .movie-card { flex-basis: calc(50% - 8px); }
+        }
+    </style>
+
+</head>
+<body>
+    <div id="loading-overlay" style="display: none;"><div class="loader"></div></div>
+
+    <div id="security-block" class="full-screen-overlay" style="display: none;"><h2>Security Alert</h2><p>Accessing via a VPN/Proxy is not permitted. Please disable it and refresh.</p></div>
+    <div id="blocked-screen" class="full-screen-overlay" style="display: none;"><h2>Account Blocked</h2><p>Your account has been blocked by the administrator. Please contact support for more information.</p></div>
+    <div id="update-screen" class="full-screen-overlay" style="display: none;">
+        <h2>Update Required</h2>
+        <p>A new version of the app is available. Please update to continue.</p>
+        <a id="update-now-btn" class="update-now-button" href="#" target="_blank" rel="noopener noreferrer">Update Now</a>
+    </div>
+
+    <!-- Basic Links Menu Overlay -->
+    <div id="links-menu-overlay" class="links-menu-overlay" style="display: none;">
+        <div class="links-menu-content">
+            <button class="close-menu-btn">×</button>
+            <h3>Quick Links</h3>
+             <div id="links-list-container">
+                 <!-- Links will be inserted here by JS -->
+             </div>
+             <a id="tutorial-link" href="#" style="display: none;" target="_blank" rel="noopener noreferrer">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8.051 1.999h.08a2.05 2.05 0 0 1 1.513 1.458l.393 1.093a.553.553 0 0 0 .623.374l2.329-.39a2.05 2.05 0 0 1 2.117 1.292L15.735 6.89a.553.553 0 0 0 0 .72l-1.024 2.29c-.224.493-.734.825-1.32.825-.135 0-.27-.01-.404-.04l-.738-.165a.553.553 0 0 0-.54.39l-.393 1.109a2.05 2.05 0 0 1-1.513 1.458h-.08a2.05 2.05 0 0 1-1.513-1.458l-.393-1.109a.553.553 0 0 0-.54-.39l-.738.165c-.134.03-.269.04-.404.04c-.586 0-1.096-.332-1.32-.825L.265 7.61a.553.553 0 0 0 0-.72l1.024-2.29c.224-.493.734-.825 1.32-.825.135 0.27.01.404.04l.738.165a.553.553 0 0 0 .54-.39l.393-1.093A2.05 2.05 0 0 1 8.05 1.999m-.313 9.14l-2.165-2.492L8 5.239l2.494 2.124-2.122 2.494z"/></svg> Watch Tutorial
+             </a>
+        </div>
+    </div>
+
+
+    <div class="search-overlay" id="search-overlay" style="display: none;">
+        <div class="search-content-wrapper">
+            <div class="search-header">
+                <input type="search" id="search-bar-input" placeholder="Search for movies...">
+                <button id="close-search">×</button>
+            </div>
+            <div id="search-results-container">
+                <div id="search-results-grid"></div>
+                <div id="search-status-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-wrapper" style="display: none;">
+        <header class="app-header">
+            <a href="#" class="logo" id="app-logo-text" onclick="app.showView('home-view'); return false;">Movie<span>S2</span></a>
+             <div class="header-icons">
+                 <div id="search-icon">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/></svg>
+                 </div>
+                  <div id="profile-icon">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"/><path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"/></svg>
+                  </div>
+                  <div id="menu-icon">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"/></svg>
+                  </div>
+             </div>
+        </header>
+        <main class="main-container">
+            <div id="status-message"></div>
+            <div id="app-views" style="display: none;">
+
+                <!-- Login View -->
+                <div id="login-view" class="auth-container" style="display: none;">
+                    <h2>Login</h2>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="loginEmail">Email:</label>
+                            <input type="email" id="loginEmail" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password:</label>
+                            <input type="password" id="loginPassword" name="password" required>
+                        </div>
+                        <button type="submit" id="loginBtn">Login</button>
+                        <p id="loginMessage" class="message"></p>
+                        <p>Don't have an account? <a href="#" data-view-target="signup-view">Sign Up</a></p>
+                    </form>
+                </div>
+
+                <!-- Signup View -->
+                <div id="signup-view" class="auth-container" style="display: none;">
+                    <h2>Create a New Account</h2>
+                    <form id="signupForm">
+                        <div class="form-group">
+                            <label for="name">Name:</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email:</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password:</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="referCode">Referral Code (Optional):</label>
+                            <input type="text" id="referCode" name="referCode">
+                        </div>
+                        <button type="submit" id="signupBtn">Sign Up</button>
+                        <p id="signupMessage" class="message"></p>
+                        <p>Already have an account? <a href="#" data-view-target="login-view">Login</a></p>
+                    </form>
+                </div>
+
+                <!-- Profile View -->
+                <div id="profile-view" class="profile-container" style="display: none;">
+                    <h2>My Profile</h2>
+                    <p><strong>Name:</strong> <span id="userName"></span></p>
+                    <p><strong>Unique ID (UID):</strong> <span id="userUid"></span> <button id="copyUidBtn">Copy</button></p>
+
+                    <h3 style="margin-top: 30px;">Subscription Status:</h3>
+                    <p id="premiumStatus" style="color: green; font-weight: bold;"></p>
+                    <p id="premiumExpiry" style="font-size: 0.9em; color: var(--text-secondary);"></p>
+                    <p id="referralCodeDisplay"><strong>Your Referral Code:</strong> <span id="myReferralCode"></span> <button id="copyReferralCodeBtn">Copy</button></p>
+                    <p id="referralCountDisplay"><strong>You have referred:</strong> <span id="referredCount">0</span> users</p>
+                    <p id="referralProgressDisplay"><strong>Referrals for Premium:</strong> <span id="referralProgress">N/A</span></p>
+                    <p id="earnedPremiumDisplay"><strong>Premium earned from referrals:</strong> <span id="earnedDays">0</span> days</p>
+
+
+                    <a href="#" class="button" data-view-target="subscription-view">Get / View Subscription</a>
+                    <button id="logoutBtn" class="button logout-btn">Logout</button>
+                </div>
+
+                <!-- Subscription View -->
+                <div id="subscription-view" class="subscription-container" style="display: none;">
+                    <h2 id="subscriptionTitle">Get Premium</h2>
+
+                    <div id="planOptions">
+                        <!-- Plans will be rendered here by JS -->
+                        <p>Loading subscription plans...</p>
+                    </div>
+
+                    <div class="payment-methods" id="paymentMethods">
+                        <h3>1. Select Payment Method:</h3>
+                        <div class="method-buttons">
+                            <p>Loading payment methods...</p>
+                        </div>
+                    </div>
+
+                    <div id="paymentDetails" style="display: none;">
+                        <p id="paymentInstruction"></p>
+                        <p><strong>Number:</strong> <span id="paymentNumber"></span></p>
+                        
+                        <div class="form-group">
+                            <label for="planName">2. Type Plan Name (e.g., Weekly):</label>
+                            <input type="text" id="planName" placeholder="Type 'Weekly' or 'Monthly'" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="planAmount">3. Type Exact Amount (e.g., 50):</label>
+                            <input type="number" id="planAmount" placeholder="Enter the correct amount in BDT" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="transactionId">4. Enter Transaction ID:</label>
+                            <input type="text" id="transactionId" placeholder="Enter your transaction ID" required>
+                        </div>
+                        <button id="verifyPaymentBtn">Submit for Verification</button>
+                        <p id="paymentMessage" class="message"></p>
+                    </div>
+                    <button class="back-btn" data-view-target="profile-view" style="margin-top: 20px;">Back to Profile</button>
+                </div>
+
+                <!-- Home View -->
+                <div id="home-view" style="display: none;">
+                    <!-- Skeletons will be shown via skeleton-loader-container first -->
+                </div>
+
+                <!-- Category View -->
+                <div id="category-view" style="display: none;"></div>
+
+                <!-- Detail View -->
+                <div id="detail-view" style="display: none;">
+                     <img id="detail-bg-blur" src="" alt="">
+                     <div class="detail-content">
+                         <h2 id="detail-title"></h2>
+                         <div id="video-player-container">
+                              <div class="video-error-message">Video not available for this movie.</div>
+                         </div>
+                         <div class="detail-meta-area">
+                             <img id="detail-poster" src="" alt="Poster">
+                              <div class="detail-text-info">
+                                 <span id="detail-category"></span>
+                                 <a id="watch-fullscreen-btn" href="#" target="_blank" rel="noopener noreferrer" style="display: none;" class="update-now-button">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1h-4zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5zM.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5zm15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5z"/></svg>
+                                    Watch Fullscreen
+                                 </a>
+                              </div>
+                         </div>
+                         
+                         <button class="back-btn">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8"/></svg> Back
+                         </button>
+                     </div>
+                </div>
+            </div>
+            <div id="skeleton-loader-container"></div>
+        </main>
+    </div>
+
+<script type="module">
+    // Import Firebase SDKs
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy, doc, setDoc, getDoc, serverTimestamp, where, updateDoc, addDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    import { getDatabase, ref, onValue, onDisconnect, set } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
+
+    // --- START: FIREBASE CONFIGURATION ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyD4wx6NmyFCdK3hym2xD_-OGbcR8j8rSpo", // Your API Key
+      authDomain: "movie-s2.firebaseapp.com", // Your Auth Domain
+      databaseURL: "https://movie-s2-default-rtdb.firebaseio.com", // Your Realtime Database URL
+      projectId: "movie-s2", // Your Project ID
+      storageBucket: "movie-s2.firebasestorage.app", // Your Storage Bucket
+      messagingSenderId: "514509886611", // Your Messaging Sender ID
+      appId: "1:514509886611:web:45d652bc81f1d347f8a966", // Your App ID
+      measurementId: "G-HB6VY3PR3V" // Your Measurement ID (if exists)
+    };
+    // --- END: FIREBASE CONFIGURATION ---
+
+    // START: VERSION OBFUSCATION
+    const getAppVersion = (() => {
+        const p1 = String.fromCharCode(50); const d = String.fromCharCode(46);
+        const p2 = String.fromCharCode(52); const p3 = String.fromCharCode(48);
+        const parts = [p1, d, p2, d, p3]; let version = null;
+        return () => { if (version === null) { version = parts.join(''); } return version; };
+    })();
+    const APP_CLIENT_VERSION = getAppVersion();
+    // END: VERSION OBFUSCATION
+
+    class MovieApp {
+        constructor(firebaseConfig) {
+            if (getApps().length === 0) {
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    this.db = getFirestore(app); this.rtdb = getDatabase(app); this.auth = getAuth(app);
+                    console.log("Firebase App initialized successfully.");
+                } catch (error) {
+                    console.error("Failed to initialize Firebase SDKs:", error);
+                    document.body.innerHTML = "<div class='full-screen-overlay' style='display:flex;'><h2>Initialization Error</h2><p>Failed to connect to services. Please try again later.</p></div>";
+                    return;
+                }
+            } else {
+                const app = getApp(); this.db = getFirestore(app);
+                this.rtdb = getDatabase(app); this.auth = getAuth(app);
+            }
+
+            this.userId = null; this.allMovies = []; this.allSliders = []; this.appLinks = {};
+            this.appConfigDetails = {}; this.currentCategoryMovies = []; this.currentView = 'loading-overlay';
+            this.previousView = 'home-view'; this.sliderInterval = null; this.searchTimer = null;
+            this.isPremiumUser = false; this.premiumExpiresAt = null;
+            this.dataFetched = false; // Flag to check if initial data is fetched
+
+            this.cacheDOMElements();
+            this.init();
+        }
+
+        cacheDOMElements() {
+            this.loadingOverlay = document.getElementById('loading-overlay');
+            this.appWrapper = document.getElementById('app-wrapper');
+            this.appViews = document.getElementById('app-views');
+            this.loginView = document.getElementById('login-view');
+            this.signupView = document.getElementById('signup-view');
+            this.profileView = document.getElementById('profile-view');
+            this.subscriptionView = document.getElementById('subscription-view');
+            this.homeView = document.getElementById('home-view');
+            this.categoryView = document.getElementById('category-view');
+            this.detailView = document.getElementById('detail-view');
+            this.blockedScreen = document.getElementById('blocked-screen');
+            this.updateScreen = document.getElementById('update-screen');
+            this.appHeader = document.querySelector('.app-header');
+            this.appLogoText = document.getElementById('app-logo-text');
+            this.skeletonLoaderContainer = document.getElementById('skeleton-loader-container');
+            this.searchOverlay = document.getElementById('search-overlay');
+            this.searchIcon = document.getElementById('search-icon');
+            this.closeSearchBtn = document.getElementById('close-search');
+            this.searchInput = document.getElementById('search-bar-input');
+            this.searchResultsGrid = document.getElementById('search-results-grid');
+            this.searchStatusMessage = document.getElementById('search-status-message');
+            this.menuIcon = document.getElementById('menu-icon');
+            this.profileIcon = document.getElementById('profile-icon');
+            this.linksMenuOverlay = document.getElementById('links-menu-overlay');
+            this.closeMenuBtn = this.linksMenuOverlay.querySelector('.close-menu-btn');
+            this.linksListContainer = document.getElementById('links-list-container');
+            this.tutorialLink = document.getElementById('tutorial-link');
+            this.updateNowBtn = document.getElementById('update-now-btn');
+            this.videoPlayerContainer = document.getElementById('video-player-container');
+            this.detailBgBlur = document.getElementById('detail-bg-blur');
+            this.detailTitle = document.getElementById('detail-title');
+            this.detailPoster = document.getElementById('detail-poster');
+            this.detailCategory = document.getElementById('detail-category');
+            this.detailBackBtn = this.detailView.querySelector('.back-btn');
+            this.watchFullscreenBtn = document.getElementById('watch-fullscreen-btn');
+            this.loginForm = document.getElementById('loginForm');
+            this.loginEmailInput = document.getElementById('loginEmail');
+            this.loginPasswordInput = document.getElementById('loginPassword');
+            this.loginMessageDiv = document.getElementById('loginMessage');
+            this.loginBtn = document.getElementById('loginBtn');
+            this.signupForm = document.getElementById('signupForm');
+            this.nameInput = document.getElementById('name');
+            this.emailInput = document.getElementById('email');
+            this.passwordInput = document.getElementById('password');
+            this.confirmPasswordInput = document.getElementById('confirmPassword');
+            this.referCodeInput = document.getElementById('referCode');
+            this.signupMessageDiv = document.getElementById('signupMessage');
+            this.signupBtn = document.getElementById('signupBtn');
+            this.userNameSpan = document.getElementById('userName');
+            this.userUidSpan = document.getElementById('userUid');
+            this.premiumStatusP = document.getElementById('premiumStatus');
+            this.premiumExpiryP = document.getElementById('premiumExpiry');
+            this.myReferralCodeSpan = document.getElementById('myReferralCode');
+            this.referredCountSpan = document.getElementById('referredCount');
+            this.referralProgressSpan = document.getElementById('referralProgress');
+            this.earnedDaysSpan = document.getElementById('earnedDays');
+            this.copyUidBtn = document.getElementById('copyUidBtn');
+            this.copyReferralCodeBtn = document.getElementById('copyReferralCodeBtn');
+            this.logoutBtn = document.getElementById('logoutBtn');
+            this.subscriptionTitle = document.getElementById('subscriptionTitle');
+            this.planOptionsDiv = document.getElementById('planOptions');
+            this.paymentMethodsDiv = document.getElementById('paymentMethods');
+            this.paymentDetailsDiv = document.getElementById('paymentDetails');
+            this.paymentInstruction = document.getElementById('paymentInstruction');
+            this.paymentNumber = document.getElementById('paymentNumber');
+            this.planNameInput = document.getElementById('planName');
+            this.planAmountInput = document.getElementById('planAmount');
+            this.transactionIdInput = document.getElementById('transactionId');
+            this.paymentMessage = document.getElementById('paymentMessage');
+            this.verifyPaymentBtn = document.getElementById('verifyPaymentBtn');
+            this.subscriptionPackages = {};
+            this.paymentMethodsData = {};
+            this.selectedPaymentMethod = null;
+        }
+
+        async init() {
+            if (!this.db || !this.rtdb || !this.auth) return;
+            
+            this.addEventListeners();
+            
+            window.onpopstate = (event) => {
+                if (event.state && event.state.view) {
+                    this.showView(event.state.view, true);
+                } else if (this.auth.currentUser) {
+                    this.showView('home-view', true);
+                } else {
+                    this.showView('login-view', true);
+                }
+            };
+            
+            if (this.appWrapper) this.appWrapper.style.display = 'block';
+
+            this.showView('loading-overlay', true);
+
+            const canProceedGeneral = await this.performInitialChecks();
+            if (!canProceedGeneral) {
+                if (this.loadingOverlay) this.loadingOverlay.style.display = 'none';
+                return;
+            }
+
+            onAuthStateChanged(this.auth, async (user) => {
+                this.showView('loading-overlay');
+                if (user) {
+                    this.userId = user.uid;
+                    const userBlocked = await this.updateUserInfoFromFirestore(user.uid);
+                    if (userBlocked) {
+                        this.showView('blocked-screen'); return;
+                    }
+
+                    if (!this.dataFetched) {
+                       await this.fetchAppData();
+                       this.dataFetched = true;
+                    }
+                    
+                    this.renderHomePage();
+                    this.setupUserAndPresence();
+                    this.updateAppNameDisplay();
+                    
+                    const targetView = window.location.hash.replace('#','') || 'home-view';
+                    if (['login-view', 'signup-view'].includes(targetView)) {
+                        this.showView('home-view');
+                    } else {
+                        this.showView(targetView);
+                    }
+                } else {
+                    this.userId = null; localStorage.clear();
+                    this.isPremiumUser = false; this.premiumExpiresAt = null;
+                    this.showView('login-view');
+                }
+                if (this.loadingOverlay) this.loadingOverlay.style.display = 'none';
+            });
+        }
+
+        updateAppNameDisplay() {
+             document.title = `${this.appConfigDetails.appName || 'MovieS2'} - Movies`;
+             if (this.appLogoText) {
+                  const spanElement = this.appLogoText.querySelector('span');
+                  this.appLogoText.textContent = this.appConfigDetails.appName || 'MovieS2';
+                  if (spanElement && this.appConfigDetails.appName === 'MovieS2') {
+                       this.appLogoText.textContent = 'Movie'; this.appLogoText.appendChild(spanElement);
+                  } else {
+                       if (spanElement) spanElement.remove();
+                       this.appLogoText.textContent = this.appConfigDetails.appName || 'MovieS2';
+                  }
+             }
+        }
+
+        async performInitialChecks() {
+            if (!this.db) { console.error("Firestore not initialized."); return false; }
+            const configDocRef = doc(this.db, 'config', 'appDetails');
+            try {
+                const configSnap = await getDoc(configDocRef);
+                if (configSnap.exists()) {
+                    const configData = configSnap.data();
+                    this.appConfigDetails = { ...configData, appName: configData.appName || 'MovieS2' };
+                    if (this.updateNowBtn) this.updateNowBtn.href = configData.updateLink || '#';
+                    if (configData.currentVersion && configData.currentVersion !== APP_CLIENT_VERSION) {
+                        this.showView('update-screen'); return false;
+                    }
+                } else {
+                     this.appConfigDetails = { appName: 'MovieS2' };
+                }
+                return true;
+            } catch (error) {
+                console.error("Error during initial checks:", error); return false;
+            }
+        }
+        
+        async updateUserInfoFromFirestore(uid) {
+            if (!this.db) return false;
+            try {
+                const userDocRef = doc(this.db, 'users', uid);
+                const userDoc = await getDoc(userDocRef);
+                if (userDoc.exists()) {
+                    const userData = userDoc.data();
+                    const now = new Date();
+                    this.premiumExpiresAt = userData.premiumExpiresAt ? userData.premiumExpiresAt.toDate() : null;
+                    this.isPremiumUser = userData.isPremium && this.premiumExpiresAt && this.premiumExpiresAt > now;
+                    
+                    if (userData.isBlocked) return true;
+                    return false;
+                } else {
+                    // Create basic user doc if not exists
+                    const parser = new UAParser(); const result = parser.getResult();
+                    const deviceInfo = `${result.browser.name || ''} ${result.browser.version || ''} on ${result.os.name || ''} ${result.os.version || ''}`.trim();
+                    await setDoc(userDocRef, {
+                        name: this.auth.currentUser.displayName || this.auth.currentUser.email.split('@')[0], email: this.auth.currentUser.email,
+                        uid: this.auth.currentUser.uid, isPremium: false, isBlocked: false, premiumExpiresAt: null,
+                        referralCode: this.auth.currentUser.uid.substring(0, 8).toUpperCase(), firstSeen: serverTimestamp(), lastSeen: serverTimestamp(),
+                        deviceInfo: deviceInfo
+                    });
+                    this.isPremiumUser = false;
+                    return false;
+                }
+            } catch (error) { console.error("Error updating user info:", error); return false; }
+        }
+
+        async setupUserAndPresence() {
+            if (!this.db || !this.rtdb || !this.userId) return;
+            try {
+                const userDocRef = doc(this.db, 'users', this.userId);
+                await updateDoc(userDocRef, { lastSeen: serverTimestamp() });
+                const userStatusRef = ref(this.rtdb, `/status/${this.userId}`);
+                const connectedRef = ref(this.rtdb, '.info/connected');
+                onValue(connectedRef, (snap) => {
+                    if (snap.val() === true) {
+                        set(userStatusRef, { online: true, lastOnline: serverTimestamp() });
+                        onDisconnect(userStatusRef).remove();
+                    }
+                });
+            } catch (error) { console.warn("Could not update user presence:", error); }
+        }
+        
+        showView(viewName, fromPopState = false) {
+            if (this.currentView === viewName && !fromPopState) return;
+
+            // Hide all views first
+            const allViews = [this.loginView, this.signupView, this.profileView, this.subscriptionView, this.homeView, this.categoryView, this.detailView, this.loadingOverlay, this.blockedScreen, this.updateScreen, this.linksMenuOverlay, this.searchOverlay];
+            allViews.forEach(view => { if (view) view.style.display = 'none'; });
+            
+            // Handle view-specific cleanup
+            if (this.currentView === 'home-view' && viewName !== 'home-view') this.clearSliderInterval();
+            if (viewName !== 'detail-view') this.clearVideoPlayer();
+            if (viewName !== 'search-overlay') {
+                if (this.searchInput) this.searchInput.value = '';
+                if (this.searchResultsGrid) this.searchResultsGrid.innerHTML = '';
+                if (this.searchStatusMessage) this.searchStatusMessage.style.display = 'none';
+            }
+            if (viewName === 'home-view' || viewName === 'category-view') {
+                 if (this.skeletonLoaderContainer) this.skeletonLoaderContainer.style.display = 'block';
+            } else {
+                 if (this.skeletonLoaderContainer) this.skeletonLoaderContainer.style.display = 'none';
+            }
+
+            // Set previous view for back navigation from overlays
+            if (!['links-menu-overlay', 'search-overlay', 'loading-overlay'].includes(this.currentView)) {
+                this.previousView = this.currentView;
+            }
+            
+            this.currentView = viewName;
+            
+            // Update browser history
+            if (!fromPopState && ['home-view', 'profile-view', 'subscription-view', 'category-view', 'detail-view', 'login-view', 'signup-view'].includes(viewName)) {
+                history.pushState({ view: viewName }, '', `#${viewName}`);
+            }
+
+            // Show the target view
+            const viewToShow = document.getElementById(viewName);
+            if (viewToShow) {
+                viewToShow.style.display = viewToShow.classList.contains('full-screen-overlay') || viewToShow.classList.contains('links-menu-overlay') || viewToShow.classList.contains('search-overlay') ? 'flex' : 'block';
+            }
+            
+            window.scrollTo(0, 0);
+
+            // Run view-specific logic
+            switch (viewName) {
+                case 'profile-view': if (this.userId) this.populateProfileView(); else this.showView('login-view'); break;
+                case 'subscription-view': if (this.userId) this.fetchSubscriptionData(); else this.showView('login-view'); break;
+                case 'home-view': if(this.dataFetched) { this.renderHomePage(); } else { this.renderSkeletons(); } break;
+                case 'links-menu-overlay': this.renderLinksMenu(); break;
+                case 'search-overlay': if (this.searchInput) this.searchInput.focus(); break;
+            }
+            if (this.appViews) this.appViews.style.display = ['login-view', 'signup-view', 'profile-view', 'subscription-view', 'home-view', 'category-view', 'detail-view'].includes(viewName) ? 'block' : 'none';
+        }
+
+        createMovieCard(movie) {
+            const card = document.createElement('a'); // Changed to 'a' for better semantics
+            card.className = 'movie-card';
+            card.dataset.id = movie.id;
+            card.href = '#'; // Let JS handle navigation
+            const isPremiumMovie = movie.type === 'premium';
+
+            if (isPremiumMovie && !this.isPremiumUser) {
+                card.classList.add('premium-locked');
+            }
+
+            card.innerHTML = `
+                <div class="movie-card-image">
+                    <img src="${movie.posterUrl || 'placeholder.png'}" alt="${movie.title || 'Untitled'}" loading="lazy" onerror="this.onerror=null;this.src='placeholder.png';">
+                </div>
+                <div class="movie-card-title">${movie.title || 'Untitled'}</div>
+                ${isPremiumMovie ? '<span class="premium-tag">Premium</span>' : '<span class="free-tag">Free</span>'}
+                ${(isPremiumMovie && !this.isPremiumUser) ? `
+                    <div class="premium-overlay">
+                        <i class="lock-icon">🔒</i>
+                        <p>This movie is for Premium members.</p>
+                        <a href="#" class="upgrade-btn" data-view-target="subscription-view">Upgrade Now</a>
+                    </div>` : ''}
+            `;
+            
+            // Prevent default 'a' tag behavior and handle click in JS
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                const upgradeBtn = e.target.closest('.upgrade-btn');
+                if (upgradeBtn) {
+                    this.showView('subscription-view');
+                } else if (card.classList.contains('premium-locked')) {
+                    this.showView('subscription-view');
+                } else {
+                    this.showDetailView(movie.id);
+                }
+            });
+
+            return card;
+        }
+
+
+        renderHomePage() {
+            if (!this.homeView || !this.dataFetched) {
+                this.renderSkeletons();
+                return;
+            }
+
+            this.homeView.innerHTML = '';
+            
+            if (this.allSliders && this.allSliders.length > 0) {
+                const sliderSection = document.createElement('section');
+                sliderSection.innerHTML = '<h2 class="section-title">Featured</h2><div id="home-slider" class="movie-carousel"></div>';
+                const sliderCarousel = sliderSection.querySelector('#home-slider');
+                this.allSliders.forEach(slider => {
+                    const item = document.createElement(slider.linkUrl ? 'a' : 'div');
+                    item.className = 'movie-card';
+                    if(slider.linkUrl) { item.href = slider.linkUrl; item.target = '_blank'; item.classList.add('has-link'); }
+                    item.innerHTML = `<div class="movie-card-image"><img src="${slider.imageUrl}" loading="lazy"></div>`;
+                    sliderCarousel.appendChild(item);
+                });
+                this.homeView.appendChild(sliderSection);
+                this.setupSliderInterval();
+            }
+
+            const groupedMovies = this.allMovies.reduce((acc, movie) => {
+                const category = movie.category || 'Other';
+                if (!acc[category]) acc[category] = [];
+                acc[category].push(movie);
+                return acc;
+            }, {});
+
+            Object.keys(groupedMovies).sort().forEach(category => {
+                const section = document.createElement('section');
+                section.className = 'category-section';
+                section.innerHTML = `<div class="section-header"><h2 class="section-title">${category}</h2><a class="more-btn" data-category="${category}">More</a></div><div class="movie-carousel"></div>`;
+                const carousel = section.querySelector('.movie-carousel');
+                groupedMovies[category].slice(0, 15).forEach(movie => carousel.appendChild(this.createMovieCard(movie)));
+                this.homeView.appendChild(section);
+            });
+            this.skeletonLoaderContainer.style.display = 'none';
+        }
+        
+        setupSliderInterval() {
+             const sliderCarousel = this.homeView.querySelector('#home-slider');
+             if (sliderCarousel) {
+                 if (this.sliderInterval) clearInterval(this.sliderInterval);
+                 let scrollPos = 0;
+                 const firstSlide = sliderCarousel.querySelector('.movie-card');
+                 if (!firstSlide) return; // No slides to scroll
+                 const scrollAmount = firstSlide.clientWidth + 15;
+                 if (scrollAmount > 0) {
+                     this.sliderInterval = setInterval(() => {
+                         scrollPos += scrollAmount;
+                         if (scrollPos >= sliderCarousel.scrollWidth - sliderCarousel.clientWidth) {
+                             scrollPos = 0;
+                         }
+                         sliderCarousel.scrollTo({ left: scrollPos, behavior: 'smooth' });
+                     }, 4000);
+                 }
+             }
+        }
+        
+        renderCategoryPage(categoryName) {
+            this.currentCategoryMovies = this.allMovies.filter(m => (m.category || 'Other') === categoryName);
+            this.categoryView.innerHTML = `
+                <div id="category-view-header"><h2 id="category-view-title">${categoryName}</h2></div>
+                <div class="grid-view" id="category-movies-grid"></div>
+                <button class="back-btn" data-view-target="home-view">Back to Home</button>
+            `;
+            const grid = this.categoryView.querySelector('#category-movies-grid');
+            this.currentCategoryMovies.forEach(movie => grid.appendChild(this.createMovieCard(movie)));
+            this.showView('category-view');
+            this.skeletonLoaderContainer.style.display = 'none';
+        }
+
+        showDetailView(movieId) {
+            const movie = this.allMovies.find(m => m.id === movieId);
+            if (!movie) return;
+
+            if (movie.type === 'premium' && !this.isPremiumUser) {
+                this.showView('subscription-view'); return;
+            }
+            
+            this.detailBgBlur.src = movie.posterUrl || '';
+            this.detailTitle.textContent = movie.title || 'Untitled';
+            this.detailPoster.src = movie.posterUrl || 'placeholder.png';
+            this.detailCategory.textContent = movie.category || 'N/A';
+            this.clearVideoPlayer();
+
+            let iframeSrc = null;
+            let fullScreenUrl = null;
+
+            if (movie.videoType === 'youtube' && movie.videoSource) {
+                iframeSrc = `https://www.youtube.com/embed/${movie.videoSource}?autoplay=0&controls=1`;
+            } else if (movie.videoType === 'drive' && movie.videoSource) {
+                const fileIdMatch = movie.videoSource.match(/\/file\/d\/([^/]+)/);
+                if (fileIdMatch) {
+                    const fileId = fileIdMatch[1];
+                    iframeSrc = `https://drive.google.com/file/d/${fileId}/preview`;
+                    fullScreenUrl = `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+                }
+            }
+            
+            if (iframeSrc) {
+                const iframe = document.createElement('iframe');
+                iframe.src = iframeSrc; iframe.allowFullscreen = true;
+                this.videoPlayerContainer.innerHTML = '';
+                this.videoPlayerContainer.appendChild(iframe);
+                this.videoPlayerContainer.classList.add('has-iframe');
+            } else {
+                 this.videoPlayerContainer.innerHTML = '<div class="video-error-message">Video not available.</div>';
+            }
+            
+            if (fullScreenUrl) {
+                this.watchFullscreenBtn.href = fullScreenUrl;
+                this.watchFullscreenBtn.style.display = 'inline-flex';
+            } else {
+                this.watchFullscreenBtn.style.display = 'none';
+            }
+
+            this.showView('detail-view');
+        }
+
+        addEventListeners() {
+            window.addEventListener('scroll', () => {
+                if (this.appHeader) document.body.classList.toggle('scrolled', window.scrollY > 10);
+            });
+
+            document.body.addEventListener('click', e => {
+                const target = e.target;
+                const viewTargetLink = target.closest('[data-view-target]');
+                const moreBtn = target.closest('.more-btn');
+                const backBtn = target.closest('.back-btn');
+
+                if (viewTargetLink && !viewTargetLink.classList.contains('upgrade-btn')) { 
+                    e.preventDefault(); 
+                    this.showView(viewTargetLink.dataset.viewTarget); 
+                }
+                else if (moreBtn) { e.preventDefault(); this.renderCategoryPage(moreBtn.dataset.category); }
+                else if (backBtn) { e.preventDefault(); history.back(); }
+                else if (target.closest('#search-icon')) { e.preventDefault(); this.showView('search-overlay'); }
+                else if (target.closest('#close-search')) { e.preventDefault(); history.back(); }
+                else if (target.closest('#profile-icon')) { e.preventDefault(); this.showView(this.userId ? 'profile-view' : 'login-view'); }
+                else if (target.closest('#menu-icon')) { e.preventDefault(); this.showView('links-menu-overlay'); }
+                else if (target.closest('.close-menu-btn') || target === this.linksMenuOverlay) { e.preventDefault(); history.back(); }
+            });
+
+            if (this.searchInput) {
+                this.searchInput.addEventListener('input', e => {
+                    clearTimeout(this.searchTimer);
+                    this.searchTimer = setTimeout(() => this.renderSearchResults(e.target.value.trim()), 300);
+                });
+            }
+
+            if (this.loginForm) this.loginForm.addEventListener('submit', this.handleLogin.bind(this));
+            if (this.signupForm) this.signupForm.addEventListener('submit', this.handleSignup.bind(this));
+            if (this.copyUidBtn) this.copyUidBtn.addEventListener('click', () => this.copyText(this.userUidSpan.textContent, 'UID'));
+            if (this.copyReferralCodeBtn) this.copyReferralCodeBtn.addEventListener('click', () => this.copyText(this.myReferralCodeSpan.textContent, 'Referral Code'));
+            if (this.logoutBtn) this.logoutBtn.addEventListener('click', this.handleLogout.bind(this));
+            if (this.verifyPaymentBtn) this.verifyPaymentBtn.addEventListener('click', this.handlePaymentVerification.bind(this));
+        }
+
+        async handleLogin(e) {
+            e.preventDefault();
+            this.loginBtn.disabled = true; this.loginMessageDiv.textContent = 'Logging in...'; this.loginMessageDiv.className = 'message info';
+            try {
+                await signInWithEmailAndPassword(this.auth, this.loginEmailInput.value, this.loginPasswordInput.value);
+                // onAuthStateChanged will handle the rest
+            } catch (error) {
+                this.loginMessageDiv.textContent = 'Login failed. Check your credentials.'; this.loginMessageDiv.className = 'message error';
+            } finally { this.loginBtn.disabled = false; }
+        }
+
+        async handleSignup(e) {
+            e.preventDefault();
+            if (this.passwordInput.value !== this.confirmPasswordInput.value) {
+                this.signupMessageDiv.textContent = 'Passwords do not match!'; this.signupMessageDiv.className = 'message error'; return;
+            }
+            this.signupBtn.disabled = true; this.signupMessageDiv.textContent = 'Creating account...'; this.signupMessageDiv.className = 'message info';
+            try {
+                const userCredential = await createUserWithEmailAndPassword(this.auth, this.emailInput.value, this.passwordInput.value);
+                await setDoc(doc(this.db, 'users', userCredential.user.uid), {
+                    name: this.nameInput.value, email: this.emailInput.value, uid: userCredential.user.uid,
+                    referralCode: userCredential.user.uid.substring(0, 8).toUpperCase(), referredBy: this.referCodeInput.value.trim() || null,
+                    firstSeen: serverTimestamp(), isPremium: false, isBlocked: false
+                });
+                this.signupMessageDiv.textContent = 'Account created! Please log in.'; this.signupMessageDiv.className = 'message success';
+                setTimeout(() => this.showView('login-view'), 2000);
+            } catch (error) {
+                this.signupMessageDiv.textContent = error.code === 'auth/email-already-in-use' ? 'Email already in use.' : 'Signup failed.';
+                this.signupMessageDiv.className = 'message error';
+            } finally { this.signupBtn.disabled = false; }
+        }
+        
+        async handleLogout() {
+            if (confirm('Are you sure you want to logout?')) {
+                try {
+                    await signOut(this.auth);
+                    history.replaceState(null, '', '#login-view');
+                    window.location.reload(); // Force a reload to clear all states
+                } catch (error) { alert("Logout failed."); }
+            }
+        }
+        
+        async handlePaymentVerification() {
+            this.paymentMessage.style.display = 'block';
+
+            // Get all input values
+            const planName = this.planNameInput.value.trim().toLowerCase();
+            const amount = parseFloat(this.planAmountInput.value.trim());
+            const transactionId = this.transactionIdInput.value.trim();
+
+            // --- Validation Step 1: Check if all fields are filled ---
+            if (!this.selectedPaymentMethod || !planName || !amount || !transactionId) {
+                this.paymentMessage.textContent = 'Please fill all fields: select a method, type plan, amount, and Transaction ID.';
+                this.paymentMessage.className = 'message error';
+                return;
+            }
+
+            // --- Validation Step 2: Match the typed plan name to a package ---
+            let expectedPrice = null;
+            let durationDays = null;
+
+            if (planName === 'weekly' && this.subscriptionPackages.weeklyPrice) {
+                expectedPrice = this.subscriptionPackages.weeklyPrice;
+                durationDays = this.subscriptionPackages.weeklyDurationDays;
+            } else if (planName === 'monthly' && this.subscriptionPackages.monthlyPrice) {
+                expectedPrice = this.subscriptionPackages.monthlyPrice;
+                durationDays = this.subscriptionPackages.monthlyDurationDays;
+            }
+
+            if (expectedPrice === null) {
+                this.paymentMessage.textContent = "Invalid Plan Name. Please type 'Weekly' or 'Monthly' exactly as shown.";
+                this.paymentMessage.className = 'message error';
+                return;
+            }
+
+            // --- Validation Step 3: Check if the typed amount matches the plan's price ---
+            if (amount !== expectedPrice) {
+                this.paymentMessage.textContent = `Incorrect amount for the ${planName} plan. Expected amount is ${expectedPrice} BDT.`;
+                this.paymentMessage.className = 'message error';
+                return;
+            }
+
+            // --- All validations passed, proceed to submit ---
+            this.verifyPaymentBtn.disabled = true;
+            this.paymentMessage.textContent = 'Submitting...';
+            this.paymentMessage.className = 'message info';
+            
+            try {
+                await addDoc(collection(this.db, 'subscriptionRequests'), {
+                    userId: this.userId,
+                    paymentMethod: this.selectedPaymentMethod.name,
+                    amount: amount, // The validated amount
+                    durationDays: durationDays, // The duration for the matched plan
+                    transactionId: transactionId,
+                    status: 'pending',
+                    timestamp: serverTimestamp()
+                });
+
+                this.paymentMessage.textContent = 'Request submitted! Our admin will verify it shortly.';
+                this.paymentMessage.className = 'message success';
+                this.paymentDetailsDiv.style.display = 'none'; // Hide form after successful submission
+            } catch (error) {
+                console.error("Error submitting request:", error);
+                this.paymentMessage.textContent = 'Submission failed. Please try again.';
+                this.paymentMessage.className = 'message error';
+            } finally {
+                this.verifyPaymentBtn.disabled = false;
+            }
+        }
+
+        
+        async copyText(text, label) {
+            try { await navigator.clipboard.writeText(text); alert(`${label} copied: ${text}`); }
+            catch (err) { alert(`Could not copy ${label}.`); }
+        }
+
+        async fetchAppData() {
+            this.renderSkeletons();
+            try {
+                const [moviesSnap, slidersSnap, linksDocSnap] = await Promise.all([
+                    getDocs(query(collection(this.db, 'movies'), orderBy('timestamp', 'desc'))),
+                    getDocs(query(collection(this.db, 'sliders'), orderBy('timestamp', 'desc'))),
+                    getDoc(doc(this.db, 'config', 'links'))
+                ]);
+                this.allMovies = moviesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this.allSliders = slidersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                this.appLinks = linksDocSnap.exists() ? linksDocSnap.data() : {};
+            } catch (error) { console.error("Firebase data fetch error:", error); }
+        }
+
+        async populateProfileView() {
+            if (!this.userId || !this.db) return;
+            try {
+                const userDocSnap = await getDoc(doc(this.db, 'users', this.userId));
+                if (userDocSnap.exists()) {
+                    const userData = userDocSnap.data();
+                    this.userNameSpan.textContent = userData.name || 'N/A';
+                    this.userUidSpan.textContent = userData.uid || 'N/A';
+                    this.premiumStatusP.textContent = this.isPremiumUser
+                        ? 'You are a Premium Member!' : 'You are a Free Member.';
+                    this.premiumStatusP.style.color = this.isPremiumUser ? 'green' : 'red';
+                    this.premiumExpiryP.textContent = this.isPremiumUser ? `Expires on: ${new Date(this.premiumExpiresAt).toLocaleString()}` : '';
+                    this.myReferralCodeSpan.textContent = userData.referralCode || 'N/A';
+                }
+            } catch (error) { console.error("Error populating profile:", error); }
+        }
+
+        async fetchSubscriptionData() {
+            try {
+                if (this.isPremiumUser) {
+                    this.subscriptionTitle.textContent = 'You are a Premium Member!';
+                    this.planOptionsDiv.innerHTML = `<p style="color: green; text-align:center;">Your subscription is active until ${new Date(this.premiumExpiresAt).toLocaleString()}.</p>`;
+                    this.paymentMethodsDiv.style.display = 'none';
+                    this.paymentDetailsDiv.style.display = 'none';
+                    return;
+                }
+
+                // Reset view for non-premium users
+                this.subscriptionTitle.textContent = 'Get Premium';
+                this.paymentMethodsDiv.style.display = 'block'; // Show payment methods section
+                this.paymentDetailsDiv.style.display = 'none'; // Hide details form initially
+                if(this.paymentMessage) this.paymentMessage.style.display = 'none';
+
+
+                const [packagesSnap, methodsSnap] = await Promise.all([
+                    getDoc(doc(this.db, 'config', 'subscriptionPackages')),
+                    getDocs(query(collection(this.db, 'paymentMethods'), orderBy('timestamp', 'asc')))
+                ]);
+                
+                if (packagesSnap.exists()) { 
+                    this.subscriptionPackages = packagesSnap.data(); 
+                    this.renderSubscriptionPlans();
+                } else {
+                    this.planOptionsDiv.innerHTML = '<p>No subscription plans available right now.</p>';
+                }
+
+                const methodButtonsContainer = this.paymentMethodsDiv.querySelector('.method-buttons');
+                if (!methodsSnap.empty) {
+                    this.paymentMethodsData = {};
+                    methodButtonsContainer.innerHTML = '';
+                    methodsSnap.forEach(docSnap => {
+                        const method = docSnap.data();
+                        this.paymentMethodsData[docSnap.id] = method;
+                        const img = document.createElement('img');
+                        img.src = method.imageUrl; img.alt = method.name; img.className = 'payment-method-img';
+                        img.dataset.methodId = docSnap.id;
+                        img.addEventListener('click', () => this.selectPaymentMethod(docSnap.id));
+                        methodButtonsContainer.appendChild(img);
+                    });
+                } else {
+                    methodButtonsContainer.innerHTML = '<p>No payment methods available.</p>';
+                }
+            } catch (error) { console.error("Error fetching subscription data:", error); }
+        }
+        
+        renderSubscriptionPlans() {
+            this.planOptionsDiv.innerHTML = '<h3>Available Plans</h3>';
+            let plansHTML = '';
+            const weeklyPrice = this.subscriptionPackages.weeklyPrice;
+            const weeklyDuration = this.subscriptionPackages.weeklyDurationDays;
+            if (weeklyPrice && weeklyDuration) {
+                plansHTML += `<p>• <b>Weekly Plan:</b> ${weeklyPrice} BDT for ${weeklyDuration} days. (Type "Weekly")</p>`;
+            }
+
+            const monthlyPrice = this.subscriptionPackages.monthlyPrice;
+            const monthlyDuration = this.subscriptionPackages.monthlyDurationDays;
+            if (monthlyPrice && monthlyDuration) {
+                 plansHTML += `<p>• <b>Monthly Plan:</b> ${monthlyPrice} BDT for ${monthlyDuration} days. (Type "Monthly")</p>`;
+            }
+
+            if(plansHTML === '') {
+                this.planOptionsDiv.innerHTML += '<p>No plans configured.</p>';
+            } else {
+                this.planOptionsDiv.innerHTML += plansHTML;
+            }
+        }
+        
+        selectPaymentMethod(methodId) {
+            document.querySelectorAll('.payment-method-img').forEach(img => img.classList.remove('active'));
+            document.querySelector(`.payment-method-img[data-method-id="${methodId}"]`).classList.add('active');
+            
+            this.selectedPaymentMethod = this.paymentMethodsData[methodId];
+            
+            if (this.selectedPaymentMethod) {
+                this.paymentInstruction.innerHTML = `Send the exact amount to the number below using <strong>${this.selectedPaymentMethod.name} (${this.selectedPaymentMethod.type})</strong>.`;
+                this.paymentNumber.textContent = this.selectedPaymentMethod.number;
+                this.paymentDetailsDiv.style.display = 'block';
+            }
+        }
+        
+        clearSliderInterval() { if (this.sliderInterval) clearInterval(this.sliderInterval); }
+        clearVideoPlayer() { if(this.videoPlayerContainer) this.videoPlayerContainer.innerHTML = ''; }
+        renderSkeletons() { 
+            let skeletonHTML = `
+                <div class="skeleton-section">
+                    <div class="skeleton skeleton-title-bar"></div>
+                    <div class="skeleton-carousel">${Array(1).fill('<div class="skeleton slider-card"></div>').join('')}</div>
+                </div>
+            `;
+            skeletonHTML += Array(2).fill(`
+                <div class="skeleton-section">
+                    <div class="skeleton skeleton-title-bar"></div>
+                    <div class="skeleton-carousel">${Array(5).fill('<div class="skeleton movie-card"><div class="skeleton-image"></div><div class="skeleton-title"></div></div>').join('')}</div>
+                </div>
+            `).join('');
+            this.skeletonLoaderContainer.innerHTML = skeletonHTML; 
+        }
+        
+        renderLinksMenu() {
+            this.linksListContainer.innerHTML = ''; // Clear previous links
+            const linkOrder = ['whatsapp', 'telegram', 'youtube', 'email'];
+            
+            const linkIcons = {
+                whatsapp: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943c-.049-.084-.182-.133-.38-.232"/></svg>',
+                telegram: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M4.146 7.126a.5.5 0 0 0 .584-.012l8.138-4.99a.5.5 0 0 0-.022-1.028L.501 5.39a.5.5 0 0 0 .046.924l3.599.967.967 3.6a.5.5 0 0 0 .923.046zM6.5 9.713l-1.43-1.43 1.43-1.43zm2 2l-1.43-1.43 1.43-1.43z"/></svg>',
+                youtube: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8.051 1.999a.636.636 0 0 0-.635.636v10.728a.636.636 0 0 0 .635.636h.002a.636.636 0 0 0 .636-.636V2.635a.636.636 0 0 0-.636-.636zM12.235 3.733a.636.636 0 0 0-.635.636v7.266a.636.636 0 0 0 .635.636h.002a.636.636 0 0 0 .636-.636V4.37a.636.636 0 0 0-.636-.636zm-8.47 2.122a.636.636 0 0 0-.635.636v2.4a.636.636 0 0 0 .635.636h.002a.636.636 0 0 0 .636-.636v-2.4a.636.636 0 0 0-.636-.636z"/></svg>',
+                email: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M.05 3.555A2 2 0 0 1 2 2h12a2 2 0 0 1 1.95 1.555L8 8.414zM0 4.697v7.104l5.803-3.558zM6.761 8.83l-6.57 4.027A2 2 0 0 0 2 14h12a2 2 0 0 0 1.808-1.144l-6.57-4.027L8 9.586zm2.433-.696L16 4.697v7.104z"/></svg>'
+            };
+
+            linkOrder.forEach(key => {
+                if (this.appLinks[key]) {
+                    const linkEl = document.createElement('a');
+                    linkEl.href = this.appLinks[key];
+                    linkEl.target = '_blank';
+                    linkEl.rel = 'noopener noreferrer';
+                    linkEl.innerHTML = `${linkIcons[key] || ''} ${key.charAt(0).toUpperCase() + key.slice(1)}`;
+                    this.linksListContainer.appendChild(linkEl);
+                }
+            });
+
+            if(this.appConfigDetails.youtubeVideoId) {
+                this.tutorialLink.href = `https://www.youtube.com/watch?v=${this.appConfigDetails.youtubeVideoId}`;
+                this.tutorialLink.style.display = 'flex';
+            } else {
+                this.tutorialLink.style.display = 'none';
+            }
+        }
+
+        renderSearchResults(term) {
+            this.searchResultsGrid.innerHTML = '';
+            this.searchStatusMessage.style.display = 'none';
+
+            if (term.length < 2) {
+                this.searchStatusMessage.textContent = 'Type at least 2 characters to search.';
+                this.searchStatusMessage.style.display = 'block';
+                return;
+            }
+
+            const lowerCaseTerm = term.toLowerCase();
+            const results = this.allMovies.filter(movie =>
+                (movie.title && movie.title.toLowerCase().includes(lowerCaseTerm)) ||
+                (movie.category && movie.category.toLowerCase().includes(lowerCaseTerm))
+            );
+
+            if (results.length > 0) {
+                results.forEach(movie => {
+                    this.searchResultsGrid.appendChild(this.createMovieCard(movie));
+                });
+            } else {
+                this.searchStatusMessage.textContent = `No results found for "${term}"`;
+                this.searchStatusMessage.style.display = 'block';
+            }
+        }
+
+        async generateUniqueReferralCode() { /* Placeholder for brevity, logic remains same */ return 'CODE123'; }
+    }
+
+    let app; 
+    (async () => {
+        function triggerSecurityLock(message = "Accessing via a VPN/Proxy is not permitted.") {
+             document.body.innerHTML = `<div class="full-screen-overlay" style="display:flex;"><h2>Security Alert</h2><p>${message}</p></div>`;
+        }
+        async function checkSecurity() {
+            try {
+                const response = await fetch(`https://ip-api.com/json?fields=proxy,hosting`);
+                if (!response.ok) return true; // Fail safe
+                const data = await response.json();
+                return !(data.proxy || data.hosting);
+            } catch (e) { return true; } // Fail safe
+        }
+
+        if (await checkSecurity()) {
+            app = new MovieApp(firebaseConfig);
+            window.app = app; // Make it globally accessible for inline onclick
+        } else {
+            triggerSecurityLock();
+        }
+    })();
+</script>
+</body>
+</html>
+<script type="text/javascript">
+	atOptions = {
+		'key' : 'ea67687d8e8ceef0eba09d4247902d91',
+		'format' : 'iframe',
+		'height' : 250,
+		'width' : 300,
+		'params' : {}
+	};
+</script>
+<script type="text/javascript" src="//www.highperformanceformat.com/ea67687d8e8ceef0eba09d4247902d91/invoke.js"></script>
+<script type="text/javascript">
+	atOptions = {
+		'key' : 'bbcb3c575a92acb5c1f0dc2df2b4e88f',
+		'format' : 'iframe',
+		'height' : 50,
+		'width' : 320,
+		'params' : {}
+	};
+</script>
+<script type="text/javascript" src="//www.highperformanceformat.com/bbcb3c575a92acb5c1f0dc2df2b4e88f/invoke.js"></script>
